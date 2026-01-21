@@ -418,7 +418,7 @@ def get_daxian(ming_gong: int, wuxing_ju: int, gender: str, year_yinyang: str) -
         direction = -1  # 逆行
     
     daxian_list = []
-    start_age = wuxing_ju + 1  # 起運年齡
+    start_age = wuxing_ju  # 起運年齡，局數即為起運歲數
     
     for i in range(12):
         gong_index = (ming_gong + i * direction) % 12
@@ -583,10 +583,6 @@ def print_result(result: Dict):
     print("\n【大限運程】")
     for dx in result["大限"]:
         print(f"  {dx['年齡']:12} | {dx['宮位']}宮")
-    
-    print("\n" + "=" * 70)
-    print("※ 本結果為簡化版排盤，僅供參考。完整排盤請使用專業軟體。")
-    print("=" * 70)
 
 
 if __name__ == "__main__":
