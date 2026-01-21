@@ -44,7 +44,8 @@ description: 紫微斗數 (Zi Wei Dou Shu / Purple Star Astrology) divination sk
 │   ├── daxian-liunian.md         ← 大限流年推算
 │   ├── hunyin.md                 ← 婚姻分析
 │   ├── shiye-caifu.md            ← 事業財富分析
-│   └── jiankang.md               ← 健康分析
+│   ├── jiankang.md               ← 健康分析
+│   └── xingqing-mingli.md        ← 星情論與名人命例（重要！）
 └── scripts/
     └── ziwei_calc.py             ← 紫微斗數計算工具
 ```
