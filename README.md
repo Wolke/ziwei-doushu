@@ -1,5 +1,8 @@
 # 紫微斗數 Zi Wei Dou Shu
 
+![Ziwei Doushu Banner](assets/banner.png)
+
+
 [繁體中文](README.md) | [English](README_EN.md)
 
 紫微斗數（Purple Star Astrology）是中國傳統命理學中最完整、最精密的星命學系統。本專案提供專業的紫微斗數技能，適用於 Claude、ChatGPT、Gemini、DeepSeek 等 AI/LLM。
