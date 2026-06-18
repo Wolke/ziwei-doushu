@@ -6,8 +6,9 @@ Zi Wei Dou Shu (Purple Star Astrology) Calculator
 簡化版排盤工具，提供基本的紫微斗數命盤計算。
 """
 
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import Tuple, Dict, List, Optional
+import math
 
 # ============================================================
 # 基礎數據
@@ -203,24 +204,40 @@ def get_shen_gong(lunar_month: int, hour_index: int) -> int:
     shen_gong = (1 + lunar_month + hour_index) % 12
     return shen_gong
 
-# 五行局對照表：WUXING_JU_TABLE[年干索引][命宮地支索引] = 局數
-# 根據 iztro-py 開源庫驗證生成
-# 年干：甲=0, 乙=1, 丙=2, 丁=3, 戊=4, 己=5, 庚=6, 辛=7, 壬=8, 癸=9
-# 地支：子=0, 丑=1, 寅=2, 卯=3, 辰=4, 巳=5, 午=6, 未=7, 申=8, 酉=9, 戌=10, 亥=11
-WUXING_JU_TABLE = {
-    0: [6, 2, 4, 4, 3, 3, 2, 2, 4, 2, 6, 3],  # 甲年
-    1: [6, 3, 4, 5, 5, 5, 3, 4, 5, 2, 2, 5],  # 乙年
-    2: [2, 3, 3, 3, 2, 6, 3, 6, 4, 3, 3, 6],  # 丙年
-    3: [3, 4, 4, 2, 4, 5, 5, 5, 4, 2, 5, 2],  # 丁年
-    4: [4, 5, 3, 6, 2, 2, 6, 6, 3, 4, 2, 6],  # 戊年
-    5: [6, 2, 4, 4, 3, 3, 2, 2, 4, 2, 6, 3],  # 己年
-    6: [6, 3, 4, 5, 5, 5, 3, 4, 5, 2, 2, 5],  # 庚年
-    7: [2, 3, 3, 3, 2, 6, 3, 6, 4, 3, 3, 6],  # 辛年
-    8: [3, 4, 4, 2, 4, 5, 5, 5, 4, 2, 5, 2],  # 壬年
-    9: [4, 5, 3, 6, 2, 2, 6, 6, 3, 4, 2, 6],  # 癸年
-}
+# 五行局（納音五行局）計算
+# 舊版的 WUXING_JU_TABLE 查表數據有誤，已改用傳統納音算法：
+#   年干 → 五虎遁定寅宮天干 → 順排至命宮得命宮天干 → 命宮干支查納音 → 五行局
+
+# 六十甲子納音五行（每兩柱共一納音，共三十組，甲子=0 起算）
+NAYIN_ELEMENTS = [
+    "金", "火", "木", "土", "金", "火", "水", "土", "金", "木",
+    "水", "土", "火", "木", "水", "金", "火", "木", "土", "金",
+    "火", "水", "土", "金", "木", "水", "土", "火", "木", "水",
+]
+
+# 納音五行 → 五行局數
+ELEMENT_TO_JU = {"金": 4, "木": 3, "水": 2, "火": 6, "土": 5}
 
 JU_TO_NAME = {2: "水二局", 3: "木三局", 4: "金四局", 5: "土五局", 6: "火六局"}
+
+
+def _ganzhi_index(gan: int, zhi: int) -> int:
+    """由天干(0-9)、地支(0-11)反查六十甲子序號(0-59)"""
+    for n in range(60):
+        if n % 10 == gan and n % 12 == zhi:
+            return n
+    raise ValueError(f"無效的干支組合 gan={gan} zhi={zhi}")
+
+
+def get_nayin_ju(gan: int, zhi: int) -> int:
+    """由干支取納音五行局數"""
+    return ELEMENT_TO_JU[NAYIN_ELEMENTS[_ganzhi_index(gan, zhi) // 2]]
+
+
+def get_yin_gong_gan(year_gan: int) -> int:
+    """五虎遁：由年干求寅宮天干索引
+    甲己→丙, 乙庚→戊, 丙辛→庚, 丁壬→壬, 戊癸→甲"""
+    return ((year_gan % 5) * 2 + 2) % 10
 
 
 def get_wuxing_ju(year_gan: int, ming_gong: int) -> Tuple[str, int]:
@@ -229,14 +246,16 @@ def get_wuxing_ju(year_gan: int, ming_gong: int) -> Tuple[str, int]:
     year_gan: 年干索引 (0-9，甲=0)
     ming_gong: 命宮地支位置 (0-11，子=0)
     返回: (五行局名稱, 局數)
-    
+
     計算方法：
     1. 根據年干用「五虎遁」確定寅宮天干
     2. 順排天干到命宮，得到命宮天干
     3. 命宮干支組合查納音五行，得五行局
-    此處使用預先計算的對照表
     """
-    ju = WUXING_JU_TABLE[year_gan % 10][ming_gong % 12]
+    yin_gan = get_yin_gong_gan(year_gan)
+    # 寅為地支索引 2，由寅順數至命宮的步數即天干遞增數
+    ming_gan = (yin_gan + (ming_gong - 2)) % 10
+    ju = get_nayin_ju(ming_gan, ming_gong)
     return (JU_TO_NAME[ju], ju)
 
 
@@ -433,28 +452,61 @@ def get_daxian(ming_gong: int, wuxing_ju: int, gender: str, year_yinyang: str) -
     return daxian_list[:8]  # 只取前8個大限
 
 
-def paipan(year: int, month: int, day: int, hour: int, gender: str = "男") -> Dict:
+# ============================================================
+# 真太陽時校正
+# ============================================================
+
+def equation_of_time(dt: datetime) -> float:
+    """均時差（分鐘），近似公式。
+    因地球公轉橢圓軌道與黃赤交角，視太陽時與平太陽時有偏差，約 ±16 分鐘。"""
+    n = dt.timetuple().tm_yday
+    b = math.radians(360.0 / 365.0 * (n - 81))
+    return 9.87 * math.sin(2 * b) - 7.53 * math.cos(b) - 1.5 * math.sin(b)
+
+
+def to_true_solar_time(dt: datetime, longitude: float) -> datetime:
+    """
+    將鐘錶時間（北京時間 UTC+8）校正為真太陽時。
+    校正量 = 經度時差 + 均時差
+      經度時差 = (出生地經度 - 120) × 4 分鐘（東經為正，120°E 為北京時間基準經線）
+      均時差   = equation_of_time(dt)
+    例：烏魯木齊約 87.6°E、北京約 116.4°E。
+    """
+    delta_min = (longitude - 120.0) * 4.0 + equation_of_time(dt)
+    return dt + timedelta(minutes=delta_min)
+
+
+def paipan(year: int, month: int, day: int, hour: int, minute: int = 0,
+           gender: str = "男", longitude: Optional[float] = None) -> Dict:
     """
     紫微斗數排盤主函數
-    
+
     Args:
         year: 西曆年份
         month: 西曆月份
         day: 西曆日期
         hour: 小時 (0-23)
+        minute: 分鐘 (0-59)，用於真太陽時校正
         gender: "男" 或 "女"
-    
+        longitude: 出生地經度（東經為正，例：北京116.4、烏魯木齊87.6）。
+                   提供時自動套用真太陽時校正；不提供則直接用鐘錶時間。
+
     Returns:
         命盤資訊
     """
-    # 1. 轉換農曆
-    lunar_year, lunar_month, lunar_day, is_leap = gregorian_to_lunar(year, month, day)
-    
+    # 0. 真太陽時校正（提供經度時）
+    clock_dt = datetime(year, month, day, hour, minute)
+    solar_dt = to_true_solar_time(clock_dt, longitude) if longitude is not None else clock_dt
+
+    # 1. 轉換農曆（以校正後日期為準）
+    lunar_year, lunar_month, lunar_day, is_leap = gregorian_to_lunar(
+        solar_dt.year, solar_dt.month, solar_dt.day)
+
     # 2. 計算年干支
     year_gan, year_zhi = get_year_ganzhi(lunar_year)
-    
-    # 3. 計算時辰
-    hour_index = SHICHEN.get(hour, 0)
+
+    # 3. 計算時辰（以校正後小時為準）
+    hour_index = SHICHEN.get(solar_dt.hour, 0)
     
     # 4. 計算命宮
     ming_gong = get_ming_gong(lunar_month, hour_index)
@@ -522,14 +574,19 @@ def paipan(year: int, month: int, day: int, hour: int, gender: str = "男") -> D
     daxian = get_daxian(ming_gong, wuxing_ju, gender, year_yinyang)
     
     # 12. 組裝結果
+    jiben = {
+        "西曆": f"{year}年{month}月{day}日 {hour:02d}:{minute:02d}",
+    }
+    if longitude is not None:
+        jiben["出生經度"] = f"{longitude}°E"
+        jiben["真太陽時"] = solar_dt.strftime("%Y-%m-%d %H:%M")
+    jiben["農曆"] = f"{lunar_year}年{'閏' if is_leap else ''}{lunar_month}月{lunar_day}日"
+    jiben["性別"] = gender
+    jiben["年干支"] = f"{TIANGAN[year_gan]}{DIZHI[year_zhi]}年"
+    jiben["時辰"] = f"{DIZHI[hour_index]}時"
+
     result = {
-        "基本資訊": {
-            "西曆": f"{year}年{month}月{day}日 {hour}時",
-            "農曆": f"{lunar_year}年{'閏' if is_leap else ''}{lunar_month}月{lunar_day}日",
-            "性別": gender,
-            "年干支": f"{TIANGAN[year_gan]}{DIZHI[year_zhi]}年",
-            "時辰": f"{DIZHI[hour_index]}時",
-        },
+        "基本資訊": jiben,
         "命盤結構": {
             "命宮": f"{DIZHI[ming_gong]}宮",
             "身宮": f"{DIZHI[shen_gong]}宮",
@@ -586,23 +643,22 @@ def print_result(result: Dict):
 
 
 if __name__ == "__main__":
-    import sys
-    
-    if len(sys.argv) >= 5:
-        year = int(sys.argv[1])
-        month = int(sys.argv[2])
-        day = int(sys.argv[3])
-        hour = int(sys.argv[4])
-        gender = sys.argv[5] if len(sys.argv) > 5 else "男"
-        
-        result = paipan(year, month, day, hour, gender)
-        print_result(result)
-    else:
-        print("用法：")
-        print("  python ziwei_calc.py 年 月 日 時 [性別]")
-        print("  例：python ziwei_calc.py 1990 8 15 14 男")
-        print()
-        print("使用當前時間示例：")
-        now = datetime.now()
-        result = paipan(now.year, now.month, now.day, now.hour, "男")
-        print_result(result)
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="紫微斗數排盤（支援真太陽時校正）",
+        epilog="例：python ziwei_calc.py 1993 1 15 18 男 --min 30 --lon 87.6")
+    parser.add_argument("year", type=int, help="西曆年")
+    parser.add_argument("month", type=int, help="西曆月")
+    parser.add_argument("day", type=int, help="西曆日")
+    parser.add_argument("hour", type=int, help="小時 (0-23)")
+    parser.add_argument("gender", nargs="?", default="男", help="性別 男/女（預設男）")
+    parser.add_argument("--min", "--minute", type=int, default=0, dest="minute",
+                        help="分鐘 (0-59)，用於真太陽時校正")
+    parser.add_argument("--lon", "--longitude", type=float, default=None, dest="longitude",
+                        help="出生地經度（東經為正，例：116.4）。提供則套用真太陽時校正")
+    args = parser.parse_args()
+
+    result = paipan(args.year, args.month, args.day, args.hour,
+                    args.minute, args.gender, args.longitude)
+    print_result(result)
